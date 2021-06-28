@@ -39,7 +39,7 @@ def read_img(filename):
 
 
 def get_binary(img_in):
-
+    # q: Diameter of each pixel neighborhood that is used during filtering
     q = 10
     blur = cv2.bilateralFilter(image, q, q*2, q/2)
 
