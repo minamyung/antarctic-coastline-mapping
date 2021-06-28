@@ -21,7 +21,7 @@ for name in glob.glob("C:/Users/myung/Documents/CSC8099/Coastline_images/*.tif")
 # images.append("image_62.tif")
 
 # set a name for saved images
-nfnb= 'C:/Users/myung/Documents/CSC8099/Output'
+nfnb= 'C:/Users/myung/Documents/CSC8099/Input'
 
 
 def read_img(filename):
