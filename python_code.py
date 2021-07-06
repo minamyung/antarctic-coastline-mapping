@@ -5,23 +5,24 @@
 
 
 
-import gdal
+from osgeo import gdal
 import numpy as np
 import cv2
 import glob
 from scipy import ndimage
+import matplotlib.pyplot as plt
 
 # collect names of all images
 
 images = []
-for name in glob.glob("C:/Users/myung/Documents/CSC8099/Coastline_images/*.tif"):
+for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Coastline_images/*.tif"):
     images.append(name)
 
 # test image
 # images.append("image_62.tif")
 
 # set a name for saved images
-nfnb= 'C:/Users/myung/Documents/CSC8099/Input'
+nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input/'
 
 
 def read_img(filename):
@@ -38,12 +39,10 @@ def read_img(filename):
     return img, img_mask, img_m
 
 
-def get_binary(img_in):
+def get_binary(img_in, q=10, threshold=150, max_val=255):
     # q: Diameter of each pixel neighborhood that is used during filtering
-    q = 10
-    blur = cv2.bilateralFilter(image, q, q*2, q/2)
-
-    (thresh, binary) = cv2.threshold(blur, 128, 255, (cv2.THRESH_BINARY + cv2.THRESH_OTSU))
+    blur = cv2.bilateralFilter(img_in, q, q*2, q/2)
+    (thresh, binary) = cv2.threshold(blur, threshold, max_val, (cv2.THRESH_BINARY + cv2.THRESH_OTSU))
     return binary
 
 def delete_b(img):
@@ -73,7 +72,7 @@ def delete_b(img):
 
 
 def remove_mask(img, mask, val):
-
+# takes a long time!
     y = 0
     img = img.astype('f4')
     for booly in mask:
@@ -108,7 +107,7 @@ def save_img(final, count, geo_file):
     driver_tiff = gdal.GetDriverByName("GTiff")
 
     # set the file name
-    nfn = nfnb + str(count) + '.tif'
+    nfn = nfnb + 'Input' + str(count) + '.tif'
 
     # create GeoTiff
     nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,
@@ -126,15 +125,15 @@ def save_img(final, count, geo_file):
     nds = None
 
 
-count = 0
-for fn in images:
+def process_img(fn, q=10, threshold=200, max_val=300):
+    # Process a single image
     print(fn)
     print("------------------------")
     # read in the image
     (image, mask, geo_file) = read_img(fn)
 
     # get binary image
-    binary = get_binary(image).astype(np.uint8)
+    binary = get_binary(image, q, threshold, max_val).astype(np.uint8)
 
     # remove small white misclassified fields
     binary_w = delete_b(binary).astype(np.uint8)
@@ -164,8 +163,52 @@ for fn in images:
     # save the image
     save_img(final, count, geo_file)
 
+
+
+
+count = 0
+
+for fn in images:
+    print('Loop ' + str(count))
+    print(fn)
+    print("------------------------")
+    # read in the image
+    (image, mask, geo_file) = read_img(fn)
+
+    # get binary image
+    binary = get_binary(image).astype(np.uint8)
+
+    # remove small white misclassified fields
+    binary_w = delete_b(binary).astype(np.uint8)
+    
+    # add no data field around
+    new_b = remove_mask(binary_w, mask, 1).astype(np.uint8)
+
+    # reverse the image
+    reverse = (~new_b.astype(bool)).astype(np.uint8)
+
+    # remove misclassified black fields
+    new_clean = delete_b(reverse).astype(np.uint8)
+
+    # add no data
+    temp = remove_mask(new_clean, mask, 1).astype(np.uint8)
+
+    # reverse it back to original
+    binary_clean = (~temp.astype(bool)).astype(np.uint8)
+
+    # extract the boundary
+    boundary = binary_clean - ndimage.morphology.binary_dilation(binary_clean)
+
+    # do a morphologic close
+    kernel = np.ones((3, 3))
+    final = cv2.morphologyEx(boundary, cv2.MORPH_CLOSE, kernel)
+    plt.imshow(final)
+    plt.show()
+    # save the image
+    # save_img(final, count, geo_file)
+
     count += 1
-    print('Loop' + str(count))
+    
 
 
 print("Finished")
