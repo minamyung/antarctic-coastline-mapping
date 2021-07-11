@@ -1,3 +1,5 @@
+# Downloads all Sentinel 1 images from PolarView which were used for the latest Antarctic coastline mapping, in .tif format.
+
 import requests
 import csv
 
