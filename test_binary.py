@@ -1,3 +1,6 @@
+# Testing the original code on a single image and show the output at different stages using pyplot
+# Runs faster than original and removes image border
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
