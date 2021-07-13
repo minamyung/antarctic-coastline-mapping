@@ -1,4 +1,5 @@
 # Downloads all Sentinel 1 images from PolarView which were used for the latest Antarctic coastline mapping, in .tif format.
+# Reference coastline: https://data.bas.ac.uk/collections/e74543c0-4c4e-4b41-aa33-5bb2f67df389/
 
 import requests
 import csv
