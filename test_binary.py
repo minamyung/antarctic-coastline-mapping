@@ -1,17 +1,24 @@
 # Testing the original code on a single image and show the output at different stages using pyplot
 # Runs faster than original and removes image border
 
+import glob
+
 import cv2
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from osgeo import gdal
 from scipy import ndimage
 
 filepath = 'C:/Users/myung/Documents/CSC8099/Data/Coastline_images/'
-image_name = 'S1B_EW_GRDM_1SDH_20210703T104033_F850_S_1'
+# image_name = 'S1B_EW_GRDM_1SDH_20210703T104033_F850_S_1'
+# filename = filepath + image_name + '.tif'
 nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input/'
 
-filename = filepath + image_name + '.tif'
+
+
+images = []
+for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Coastline_images/*.tif"):
+    images.append(name)
 
 def read_img(filename):
     # read an image
@@ -69,55 +76,66 @@ def remove_border(img, boundary):
     img2 = cv2.bitwise_and(img, img, mask=boundary)
     return img2
 
-(image, mask, geo_file) = read_img(filename)
-blur = b_filter(image).astype(np.uint8)
-# plt.imshow(blur)
-# plt.show()
-binary = get_binary(blur).astype(np.uint8)
-# plt.imshow(binary)
-# plt.show()
-binary_w = delete_b(binary).astype(np.uint8)
+i = 0
 
-new_b = remove_mask(binary_w, mask).astype(np.uint8)
+for image_name in images:
+    i += 1
+    total = len(images)
+
+    filename = filepath + image_name + '.tif'
+
+    print(str(i) + "/" + str(total))
+    print('Processing ' + filename)
+
+    (image, mask, geo_file) = read_img(filename)
+    blur = b_filter(image).astype(np.uint8)
+    # plt.imshow(blur)
+    # plt.show()
+    binary = get_binary(blur).astype(np.uint8)
+    # plt.imshow(binary)
+    # plt.show()
+    binary_w = delete_b(binary).astype(np.uint8)
+
+    new_b = remove_mask(binary_w, mask).astype(np.uint8)
 
 
-# reverse = (~new_b.astype(bool)).astype(np.uint8)
-new_clean = delete_b(new_b).astype(np.uint8)
+    # reverse = (~new_b.astype(bool)).astype(np.uint8)
+    new_clean = delete_b(new_b).astype(np.uint8)
 
-temp = remove_mask(new_clean, mask).astype(np.uint8)
-# plt.imshow(temp)
-# plt.show()
-binary_clean = (~temp.astype(bool)).astype(np.uint8)
+    temp = remove_mask(new_clean, mask).astype(np.uint8)
+    # plt.imshow(temp)
+    # plt.show()
+    binary_clean = (~temp.astype(bool)).astype(np.uint8)
 
 
-border_boundary = mask - ndimage.morphology.binary_dilation(mask)
+    border_boundary = mask - ndimage.morphology.binary_dilation(mask)
 
-# Dilate the border of the image so we can exclude this from the final boundary line
-dilation_kernel = np.ones((50,50),np.uint8)
-dilated_border = cv2.dilate(border_boundary,dilation_kernel,iterations = 1)
-border_mask = cv2.bitwise_not(dilated_border)
+    # Dilate the border of the image so we can exclude this from the final boundary line
+    dilation_kernel = np.ones((50,50),np.uint8)
+    dilated_border = cv2.dilate(border_boundary,dilation_kernel,iterations = 1)
+    border_mask = cv2.bitwise_not(dilated_border)
 
-boundary = binary_clean - ndimage.morphology.binary_dilation(binary_clean)
-noborder_boundary = remove_border(boundary, border_mask).astype(np.uint8)
-kernel = np.ones((3, 3))
-final = cv2.morphologyEx(noborder_boundary, cv2.MORPH_CLOSE, kernel)
+    boundary = binary_clean - ndimage.morphology.binary_dilation(binary_clean)
+    noborder_boundary = remove_border(boundary, border_mask).astype(np.uint8)
+    kernel = np.ones((3, 3))
+    final = cv2.morphologyEx(noborder_boundary, cv2.MORPH_CLOSE, kernel)
 
-driver_tiff = gdal.GetDriverByName("GTiff")
+    driver_tiff = gdal.GetDriverByName("GTiff")
 
-# set the file name
-nfn = nfnb + image_name +'.tif'
+    # set the file name
+    nfn = nfnb + image_name +'.tif'
 
-# create GeoTiff
-nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,
-                            eType=gdal.GDT_UInt16)
-nds.SetGeoTransform(geo_file.GetGeoTransform())
-nds.SetProjection(geo_file.GetProjection())
+    # create GeoTiff
+    nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,
+                                eType=gdal.GDT_UInt16)
+    nds.SetGeoTransform(geo_file.GetGeoTransform())
+    nds.SetProjection(geo_file.GetProjection())
 
-# copy output to the created file
-bandn = nds.GetRasterBand(1).ReadAsArray()
-bandn = final
-nds.GetRasterBand(1).WriteArray(bandn)
+    # copy output to the created file
+    bandn = nds.GetRasterBand(1).ReadAsArray()
+    bandn = final
+    nds.GetRasterBand(1).WriteArray(bandn)
 
-# set no data to remove background
-nds.GetRasterBand(1).SetNoDataValue(0)
-nds = None
+    # set no data to remove background
+    nds.GetRasterBand(1).SetNoDataValue(0)
+    nds = None
