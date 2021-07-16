@@ -12,6 +12,7 @@ Dependencies:
 - python=3.9.5
 - requests=2.25.1
 - scipy=1.7.0
+
 See requirements.txt for full list of dependencies (or creating an environment to run from).
 Check imports using test_import.py module.
 
