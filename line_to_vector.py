@@ -4,6 +4,7 @@
 #########################################
 
 
+# this code runs the process for a single file
 
 # Must run in qgis
 
@@ -13,17 +14,17 @@ import matplotlib.pyplot as plt
 import glob
 import scipy
 
-input_location = "\\Users\myung\Documents\CSC8099\Data\Input\\"
-output_location = "\\Users\myung\Documents\CSC8099\Data\Output\\"
+input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input\\"
+output_location = "C:\\Users\myung\Documents\CSC8099\Data\Output\\"
 
 
 images = []
-for name in glob.glob(input_location):
-    trunc_name = str(name).split('\\')[-1]
+for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input/*.tif"):
+    trunc_name = str(name).split('\\')[-1][:-4]
     images.append(trunc_name)
 
 i = 0
-
+print(images)
 for image_name in images:
     i += 1
     total = len(images)

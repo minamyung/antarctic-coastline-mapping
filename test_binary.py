@@ -77,8 +77,7 @@ def remove_border(img, boundary):
     img2 = cv2.bitwise_and(img, img, mask=boundary)
     return img2
 
-i = 0
-print(images)
+i = 0 # Count the number of images processed
 
 for image_name in images:
     i += 1
