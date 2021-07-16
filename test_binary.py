@@ -1,6 +1,6 @@
 # Testing the original code on a single image and show the output at different stages using pyplot
 # Runs faster than original and removes image border
-
+import time
 import glob
 import cv2
 import matplotlib.pyplot as plt
@@ -8,6 +8,8 @@ import numpy as np
 from osgeo import gdal
 from scipy import ndimage
 import sys
+
+startTime = time.time()
 
 # location of source images
 filepath = 'C:/Users/myung/Documents/CSC8099/Data/Coastline_images/'
@@ -142,4 +144,6 @@ for image_name in images:
     nds.GetRasterBand(1).SetNoDataValue(0)
     nds = None
 
+executionTime = (time.time() - startTime)
 print("Finished processing images.")
+print("Execution time: " + str(executionTime))

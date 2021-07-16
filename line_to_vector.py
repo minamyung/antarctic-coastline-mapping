@@ -13,6 +13,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import glob
 import scipy
+import time
+
+startTime = time.time()
 
 input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input\\"
 output_location = "C:\\Users\myung\Documents\CSC8099\Data\Output\\"
@@ -24,7 +27,7 @@ for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input/*.tif"):
     images.append(trunc_name)
 
 i = 0
-print(images)
+
 for image_name in images:
     i += 1
     total = len(images)
@@ -44,3 +47,8 @@ for image_name in images:
     # Converts raster data to vector data
     processing.run("grass7:r.to.vect", {'input':input_file_line,'type':0,'column':'value','-s':False,'-v':False,'-z':False,'-b':False,'-t':False,'output':output_file,
                                         'GRASS_REGION_PARAMETER':None,'GRASS_REGION_CELLSIZE_PARAMETER':0,'GRASS_OUTPUT_TYPE_PARAMETER':2,'GRASS_VECTOR_DSCO':'','GRASS_VECTOR_LCO':'','GRASS_VECTOR_EXPORT_NOCAT':False})
+
+
+executionTime = (time.time() - startTime)
+print("Finished producing vector data.")
+print("Execution time: " + str(executionTime))
