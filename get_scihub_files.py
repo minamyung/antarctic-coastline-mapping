@@ -18,8 +18,6 @@ filenames = []
 
 base_path = 'C:\\Users\myung\Documents\CSC8099\Data\Coastline_images_to_extract\\'
 
-# TODO: add timer
-# TODO: count processed files
 
 # Open list of filenames of S1 data used in making the reference coastline
 with open('C:\\Users\myung\Documents\CSC8099\Data\\filenames_test.csv') as csvfile:
@@ -68,6 +66,6 @@ for name in filenames:
     else:
         print(name, "could not be downloaded.")
 
-        
+
 executionTime = (time.time() - startTime)
 print("Execution time: " + str(executionTime))
