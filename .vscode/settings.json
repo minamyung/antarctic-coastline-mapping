@@ -1,0 +1,5 @@
+{
+    "python.pythonPath": "C:\\Users\\myung\\anaconda3\\envs\\acm\\python39.exe",
+    "python.terminal.activateEnvironment": true,
+    "terminal.integrated.automationShell.windows": "C:\\Windows\\System32\\cmd.exe"
+}

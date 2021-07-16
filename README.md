@@ -12,8 +12,13 @@ Dependencies:
 - python=3.9.5
 - requests=2.25.1
 - scipy=1.7.0
+See requirements.txt for full list of dependencies (or creating an environment to run from).
+Check imports using test_import.py module.
 
-## Installation
+## Files
+Main image processing files:
+- test_binary.py : main image processing file
+- line_to_vector.py : converting to vector data (must run in QGIS)
 
 ## Acknowledgements
 Many thanks to my supervisor, David Herbert, from Newcastle University, as well as Louise Ireland and Laura Gerrish from the British Antarctic Survey.

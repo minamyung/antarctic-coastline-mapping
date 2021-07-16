@@ -11,6 +11,8 @@ import cv2
 import glob
 from scipy import ndimage
 import matplotlib.pyplot as plt
+import sys
+
 
 # collect names of all images
 

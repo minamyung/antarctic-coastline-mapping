@@ -5,3 +5,4 @@
 # Get all current date images which intersect the shapefile
 # 'erase' the areas covered by resulting images
 # Repeat for previous day until all areas are covered
+

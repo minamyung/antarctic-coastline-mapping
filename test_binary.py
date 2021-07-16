@@ -2,23 +2,24 @@
 # Runs faster than original and removes image border
 
 import glob
-
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import gdal
 from scipy import ndimage
+import sys
 
+# location of source images
 filepath = 'C:/Users/myung/Documents/CSC8099/Data/Coastline_images/'
-# image_name = 'S1B_EW_GRDM_1SDH_20210703T104033_F850_S_1'
-# filename = filepath + image_name + '.tif'
-nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input/'
 
+# location to save processed images
+nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input/'
 
 
 images = []
 for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Coastline_images/*.tif"):
-    images.append(name)
+    trunc_name = str(name).split('\\')[-1]
+    images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
 
 def read_img(filename):
     # read an image
@@ -77,15 +78,16 @@ def remove_border(img, boundary):
     return img2
 
 i = 0
+print(images)
 
 for image_name in images:
     i += 1
     total = len(images)
 
-    filename = filepath + image_name + '.tif'
+    filename = filepath + image_name
 
     print(str(i) + "/" + str(total))
-    print('Processing ' + filename)
+    print('Processing ' + image_name)
 
     (image, mask, geo_file) = read_img(filename)
     blur = b_filter(image).astype(np.uint8)
@@ -122,8 +124,9 @@ for image_name in images:
 
     driver_tiff = gdal.GetDriverByName("GTiff")
 
-    # set the file name
-    nfn = nfnb + image_name +'.tif'
+    # set the new file name (same as source image, but different folder)
+    nfn = nfnb + image_name
+
 
     # create GeoTiff
     nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,
@@ -139,3 +142,5 @@ for image_name in images:
     # set no data to remove background
     nds.GetRasterBand(1).SetNoDataValue(0)
     nds = None
+
+print("Finished processing images.")
