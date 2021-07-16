@@ -3,11 +3,16 @@
 # platform: win-64
 blas=1.0=mkl
 boost-cpp=1.74.0=h5b4e17d_4
+brotlipy=0.7.0=py39hb82d6ee_1001
 bzip2=1.0.8=h8ffe710_4
 ca-certificates=2021.5.30=h5b45459_0
 cairo=1.16.0=hb19e0ff_1008
 certifi=2021.5.30=py39hcbf5309_0
+cffi=1.14.6=py39h0878f49_0
 cfitsio=3.470=h0af3d06_7
+chardet=4.0.0=py39hcbf5309_1
+charset-normalizer=2.0.0=pyhd8ed1ab_0
+cryptography=3.4.7=py39hd8d06c1_0
 curl=7.77.0=h789b8ee_0
 expat=2.4.1=h39d44d4_0
 fontconfig=2.13.1=h1989441_1005
@@ -21,6 +26,7 @@ gettext=0.19.8.1=h1a89ca6_1005
 hdf4=4.2.15=h0e5069d_3
 hdf5=1.10.6=nompi_h5268f04_1114
 icu=68.1=h0e60522_0
+idna=3.1=pyhd3deb0d_0
 intel-openmp=2021.3.0=h57928b3_3372
 jasper=2.0.14=h77af90b_2
 jbig=2.1=h8d14728_2003
@@ -70,9 +76,13 @@ poppler-data=0.4.10=0
 postgresql=13.3=h1c22c4f_0
 proj=8.0.1=h1cfcee9_0
 py-opencv=4.5.2=py39h832f523_1
+pycparser=2.20=pyh9f0ad1d_2
+pyopenssl=20.0.1=pyhd8ed1ab_0
+pysocks=1.7.1=py39hcbf5309_3
 python=3.9.6=h7840368_1_cpython
 python_abi=3.9=2_cp39
 qt=5.12.9=h5909a2a_4
+requests=2.26.0=pyhd8ed1ab_0
 setuptools=49.6.0=py39hcbf5309_3
 six=1.16.0=pyhd3eb1b0_0
 sqlite=3.36.0=h8ffe710_0
@@ -81,9 +91,11 @@ tiledb=2.3.2=h78dabda_0
 tk=8.6.10=h8ffe710_1
 tzdata=2021a=he74cb21_1
 ucrt=10.0.20348.0=h57928b3_0
+urllib3=1.26.6=pyhd8ed1ab_0
 vc=14.2=hb210afc_5
 vs2015_runtime=14.29.30037=h902a5da_5
 wheel=0.36.2=pyhd3deb0d_0
+win_inet_pton=1.1.0=py39hcbf5309_2
 wincertstore=0.2=py39hcbf5309_1006
 xerces-c=3.2.3=h0e60522_2
 xz=5.2.5=h62dcd97_1
