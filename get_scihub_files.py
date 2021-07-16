@@ -4,6 +4,9 @@ import csv
 import requests
 import xml.etree.ElementTree as ET
 import sys
+import time
+
+startTime = time.time()
 
 username = 'minamyung'
 password = 'pF32xMRWrSK858S'
@@ -64,3 +67,7 @@ for name in filenames:
             print(name, "is not available.")
     else:
         print(name, "could not be downloaded.")
+
+        
+executionTime = (time.time() - startTime)
+print("Execution time: " + str(executionTime))

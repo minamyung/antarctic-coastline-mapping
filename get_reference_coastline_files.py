@@ -1,8 +1,11 @@
 # Downloads all Sentinel 1 images from PolarView which were used for the latest Antarctic coastline mapping, in .tif format.
 # Reference coastline: https://data.bas.ac.uk/collections/e74543c0-4c4e-4b41-aa33-5bb2f67df389/
-
+import time
 import requests
 import csv
+
+startTime = time.time()
+
 
 base_URI = 'https://www.polarview.aq/images/104_S1geotiff/'
 
@@ -27,3 +30,5 @@ for name in filenames:
         print(save_name, "downloaded.")
     else:
         print(save_name,"could not be downloaded.")
+executionTime = (time.time() - startTime)
+print("Execution time: " + str(executionTime))
