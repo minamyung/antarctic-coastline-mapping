@@ -4,15 +4,13 @@
 #########################################
 
 
-# this code runs the process for a single file
-
 # Must run in qgis
 
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import glob
-import scipy
+import processing
 import time
 
 startTime = time.time()

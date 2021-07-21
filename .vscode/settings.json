@@ -1,5 +1,6 @@
 {
     "python.pythonPath": "C:\\Users\\myung\\anaconda3\\envs\\acm\\python39.exe",
     "python.terminal.activateEnvironment": true,
-    "terminal.integrated.automationShell.windows": "C:\\Windows\\System32\\cmd.exe"
+    "terminal.integrated.automationShell.windows": "C:\\Windows\\System32\\cmd.exe",
+    "python.condaPath": "C:\\Users\\myung\\anaconda3\\Scripts\\conda.exe",
 }
