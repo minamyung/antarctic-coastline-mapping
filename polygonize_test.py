@@ -8,7 +8,9 @@ from osgeo import osr
 from scipy import ndimage
 import subprocess
 import geopandas as gpd
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, Polygon, box, shape
+import rasterio.features
+from affine import Affine
 
 startTime = time.time()
 
@@ -26,9 +28,9 @@ images = ['S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif']
 #     trunc_name = str(name).split('\\')[-1]
 #     images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
 
-REFERENCE_POLYGON_COASTLINE_PATH = 'C:/Users/myung/Documents/CSC8099/Data/add_coastline_high_res_polygon_v7_4_dissolved.shp'
-
-
+REF_PATH = 'C:/Users/myung/Documents/CSC8099/Data/add_coastline_high_res_polygon_v7_4/add_coastline_high_res_polygon_v7_4.shp'
+REF_GS = gpd.GeoSeries.from_file(REF_PATH)
+REF_GDF = gpd.GeoDataFrame.from_file(REF_PATH)
 def read_img(filename):
     # read an image
     img_r = cv2.imread(filename, 0)
@@ -76,45 +78,104 @@ def delete_b(img, min_size_fraction):
             img2[output == i + 1] = 1
     return img2
 
-def extract_polygons(img, geo_file, mask):
+def extract_polygons(img, img_mask, img_m):
+    # Try again with rasterio instead of gdal
+    transform = Affine.from_gdal(*img_m.GetGeoTransform())
+    # Initialise mask_polygon
+    polygons = []
+    polygons_names = []
+    # Go through all the shapes extracted from the img_mask array 
+    for vec in rasterio.features.shapes(img, transform=transform): 
+        polygons.append(shape(vec[0])) # Save as a shape
+        polygons_names.append('extracted polygons')
+    
+    df_polygons = {'name': polygons_names, 'geometry': polygons}
+    gdf_polygons = gpd.GeoDataFrame(df_polygons, crs='epsg:3031')
+
+    # for getting rid of the no data area
+    mask_polygon = None
+    # Go through all the shapes extracted from the img_mask array 
+    for vec in rasterio.features.shapes(img_mask, transform=transform): 
+        if(vec[1] == 1): # The inner box of the img_mask is where the value is 1
+            mask_polygon = shape(vec[0]) # Save as a shape
+    # Make the dataframe (see pandas)
+    df_inner = {'name': ['inner bounding box'], 'geometry': [mask_polygon]}
+    # Make a GeoDataFrame with the right crs
+    gdf_inner = gpd.GeoDataFrame(df_inner, crs='epsg:3031')
+
+    clip_polygons = gpd.clip(gdf_polygons, gdf_inner)
+    clip_polygons.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/clipped_polygons.shp')
+    return clip_polygons
+
+def extract_polygons_old(img, img_mask, img_m):
     # Make an output layer to store polygon data
     # From https://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html
-    dst_layername = "polygon_layer"
+    dst_layername = "polygon_layer_0.05area_nomask_open10_1"
     dst_drv = ogr.GetDriverByName("ESRI Shapefile")
     dst_ds = dst_drv.CreateDataSource(nfnb + dst_layername + '.shp')
     dst_layer = dst_ds.CreateLayer(dst_layername, srs=None)
     
+    
     # Create raster from current array
     # From https://stackoverflow.com/questions/37648439/simplest-way-to-save-array-into-raster-file-in-python
     src_drv = gdal.GetDriverByName("GTiff")
-    src_layername = "source_layer"
-    raster = src_drv.Create(nfnb + src_layername + ".tif", xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,
+    src_layername = "source_layer_0.05area_nomask_open10_1"
+    raster = src_drv.Create(nfnb + src_layername + ".tif", xsize=img_m.RasterXSize, ysize=img_m.RasterYSize, bands=1,
                                 eType=gdal.GDT_UInt16)
     raster.GetRasterBand(1).WriteArray(img)
-    geotransform = geo_file.GetGeoTransform()
-    projection = geo_file.GetProjection()
+    geotransform = img_m.GetGeoTransform()
+    projection = img_m.GetProjection()
+
     raster.SetGeoTransform(geotransform)
     raster.SetProjection(projection)
     raster.FlushCache()
     raster = None
     src = gdal.Open(nfnb + src_layername + ".tif")
     # Extract polygons
-    gdal.Polygonize(src.GetRasterBand(1), geo_file.GetRasterBand(1), dst_layer, -1, [], callback=None)
+    # gdal.Polygonize(src.GetRasterBand(1), img_m.GetRasterBand(1), dst_layer, -1, [], callback=None)
+    # Check to see if the mask was doing anything
+    gdal.Polygonize(src.GetRasterBand(1), None, dst_layer, -1, [], callback=None)
+    # This is to make the file available later on!!!
+    dst_ds.FlushCache()
+    dst_ds = None
+    # Clip to size
+    # Open dst_layer with geopandas
+    layer_gdf = gpd.GeoDataFrame.from_file('C:/Users/myung/Documents/CSC8099/Data/polygons/polygon_layer_0.05area_nomask_open10_1.shp')
+    layer_gdf.crs = 'epsg:3031'
+    layer_gdf.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/layer_gdf.shp')
+    transform = Affine.from_gdal(*img_m.GetGeoTransform())
+    # Initialise mask_polygon
+    mask_polygon = None
+    # Go through all the shapes extracted from the img_mask array 
+    for vec in rasterio.features.shapes(img_mask, transform=transform): 
+        if(vec[1] == 1): # The inner box of the img_mask is where the value is 1
+            mask_polygon = shape(vec[0]) # Save as a shape
+    # Make the dataframe (see pandas)
+    df_inner = {'name': ['inner bounding box'], 'geometry': [mask_polygon]}
+    # Make a GeoDataFrame with the right crs
+    gdf_inner = gpd.GeoDataFrame(df_inner, crs='epsg:3031')
+    # Save to shapefile if necessary
+    # gdf_inner.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/bounding_box_inner_01.shp')
+    # Clip polygonized data to bounding box
+    clipped_inner = gpd.clip(layer_gdf, gdf_inner)
+    # Save to shapefile if necessary
+    clipped_inner.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/polygonize_clipped_inner.shp')
+    # Dissolve to remove internal features and only get the outermost coastline
+    #clipped_inner_dissolved = clipped_inner.dissolve()
+    # Save to shapefile if necessary
+    #clipped_inner_dissolved.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/polygonize_clipped_inner_dissolved_01.shp')
+    #return clipped_inner_dissolved
 
-def polygon_filtering(image_name):
+def clip_ref_polygon(img_m):
     # NOTE: this currently does NOT dissolve the reference coastline, so all the internal features and lines are still present.
 
     # Clip ref to extent of the image
-    # Reference coastline (polygon)
-    ref = gpd.GeoSeries.from_file('C:/Users/myung/Documents/CSC8099/Data/add_coastline_high_res_polygon_v7_4/add_coastline_high_res_polygon_v7_4.shp')
-    # Image (tif)
-    border = gdal.Open('C:/Users/myung/Documents/CSC8099/Data/Coastline_images/S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif')
-    # Get bounds in coordinates
-    geoTransform = border.GetGeoTransform()
+    # Get bounds in coordinates (Affine transform)
+    geoTransform = img_m.GetGeoTransform()
     minx = geoTransform[0]
     maxy = geoTransform[3]
-    maxx = minx + geoTransform[1] * border.RasterXSize
-    miny = maxy + geoTransform[5] * border.RasterYSize
+    maxx = minx + geoTransform[1] * img_m.RasterXSize
+    miny = maxy + geoTransform[5] * img_m.RasterYSize
     border = None # close file
     # Draw a bounding box from coordinates (using shapely.geometry.box)
     bounding_box = box(minx, miny, maxx, maxy)
@@ -125,12 +186,53 @@ def polygon_filtering(image_name):
     # Save bounding box to shapefile if needed
     # gdf.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/bounding_box.shp')
     # Clip ref coastline to bounding box
-    clipped = gpd.clip(ref, gdf)
+    clipped = gpd.clip(REF_GS, gdf)
     # Save clipped ref polygon coastline if needed
     # clipped.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/clipped.shp')
+    return clipped
 
-# Testing polygon_filtering
-polygon_filtering(images[0]) 
+
+def clip_ref_polygon_inner(img_mask, img_m):
+    # NOTE: this currently does NOT dissolve the reference coastline, so all the internal features and lines are still present.
+    # Now try with the inner border(w/o nodata areas)
+    # Get Affine transform of original image
+    transform = Affine.from_gdal(*img_m.GetGeoTransform())
+    # Initialise mask_polygon
+    mask_polygon = None
+    # Go through all the shapes extracted from the img_mask array 
+    for vec in rasterio.features.shapes(img_mask, transform=transform): 
+        if(vec[1] == 1): # The inner box of the img_mask is where the value is 1
+            mask_polygon = shape(vec[0]) # Save as a shape
+    # Make the dataframe (see pandas)
+    df_inner = {'name': ['inner bounding box'], 'geometry': [mask_polygon]}
+    # Make a GeoDataFrame with the right crs
+    gdf_inner = gpd.GeoDataFrame(df_inner, crs='epsg:3031')
+    # Save to shapefile if necessary
+    # gdf_inner.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/bounding_box_inner.shp')
+    # Clip ref coastline to bounding box
+    clipped_inner = gpd.clip(REF_GDF, gdf_inner)
+    # Save to shapefile if necessary
+    # clipped_inner.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/clipped_inner.shp')
+    # Dissolve to remove internal features and only get the outermost coastline
+    clipped_inner_dissolved = clipped_inner.dissolve()
+    # Save to shapefile if necessary
+    # clipped_inner_dissolved.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/clipped_inner_dissolved.shp')
+    return clipped_inner_dissolved
+
+def polygon_filtering(extracted_polygons, clipped_inner):
+    # extracted_polygons is a layer
+    filtered_polygons = []
+    for polygon in extracted_polygons:
+        if not clipped_inner.contains(polygon):
+            filtered_polygons.append(polygon)
+    return filtered_polygons
+
+
+
+# Testing clip_ref_polygon and clip_ref_polygon_inner
+
+# img, img_mask, img_m = read_img(filepath + images[0])
+# clip_ref_polygon_inner(img_mask, img_m) 
 
 def remove_mask(img, img_mask):
     img2 = cv2.bitwise_xor(img,img_mask)
@@ -142,42 +244,41 @@ def remove_border(img, boundary):
 
 i = 0 # Count the number of images processed
 
-# for image_name in images:
-#     i += 1
-#     total = len(images)
+for image_name in images:
+    i += 1
+    total = len(images)
 
-#     filename = filepath + image_name
+    filename = filepath + image_name
 
-#     print(str(i) + "/" + str(total))
-#     print('Processing ' + image_name)
+    print(str(i) + "/" + str(total))
+    print('Processing ' + image_name)
 
-#     (image, mask, geo_file) = read_img(filename)
-#     blur = b_filter(image).astype(np.uint8)
-#     # plt.imshow(blur)
-#     # plt.show()
-#     binary = get_binary(blur).astype(np.uint8)
+    (img, img_mask, img_m) = read_img(filename)
+    blur = b_filter(img).astype(np.uint8)
+    # plt.imshow(blur)
+    # plt.show()
+    binary = get_binary(blur).astype(np.uint8)
 
-#     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(100,100))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(10,10))
 
-#     binary_w = delete_b(binary, 0.05).astype(np.uint8)
-#     m_close_binary_w = cv2.morphologyEx(binary_w, cv2.MORPH_CLOSE, kernel)
-#     # plt.imshow(m_close_binary_w)
-#     # plt.show()
-#     new_b = remove_mask(m_close_binary_w, mask).astype(np.uint8)
-#     # plt.imshow(new_b)
-#     # plt.show()
-#     # Here, extract polygons and remove those which are inside the ref. coastline as internal features
+    binary_w = delete_b(binary, 0.05).astype(np.uint8)
+    m_close_binary_w = cv2.morphologyEx(binary_w, cv2.MORPH_CLOSE, kernel)
+    # plt.imshow(m_close_binary_w)
+    # plt.show()
+    new_b = remove_mask(m_close_binary_w, img_mask).astype(np.uint8)
+    # plt.imshow(new_b)
+    # plt.show()
+    # Here, extract polygons and remove those which are inside the ref. coastline as internal features
     
-#     # m_close_new_b = cv2.morphologyEx(new_b, cv2.MORPH_CLOSE, kernel)
-#     #m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN, kernel)
-#     # plt.imshow(m_close_new_b)
-#     # plt.show()
-#     # plt.imshow(m_open_new_b)
-#     # plt.show()
-#     extract_polygons(new_b, geo_file, mask)
-#     # new_clean = extract_polygons(new_b, 0.05).astype(np.uint8)
-#     # plt.imshow(new_clean)
-#     # plt.show()
-#     polygon_filtering(image_name)
-
+    # m_close_new_b = cv2.morphologyEx(new_b, cv2.MORPH_CLOSE, kernel)
+    m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN, kernel)
+    # plt.imshow(m_close_new_b)
+    # plt.show()
+    # plt.imshow(m_open_new_b)
+    # plt.show()
+    extract_polygons(m_open_new_b, img_mask, img_m)
+    # new_clean = extract_polygons(new_b, 0.05).astype(np.uint8)
+    # plt.imshow(new_clean)
+    # plt.show()
+    # polygon_filtering(image_name)
 
