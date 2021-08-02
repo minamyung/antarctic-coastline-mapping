@@ -16,16 +16,17 @@ import sys
 startTime = time.time()
 
 # location of source images
-filepath = 'C:/Users/myung/Documents/CSC8099/Data/Coastline_images/'
+filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/'
 
 # location to save processed images
-nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input/'
+nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input_rn/'
 
 
-images = ['S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif']
-# for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Coastline_images/*.tif"):
-#     trunc_name = str(name).split('\\')[-1]
-#     images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
+# images = ['S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif']
+images = []
+for name in glob.glob(filepath + "*.tif"):
+    trunc_name = str(name).split('\\')[-1]
+    images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
 
 def read_img(filename):
     # read an image
