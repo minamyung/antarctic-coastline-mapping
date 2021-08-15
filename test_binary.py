@@ -3,7 +3,7 @@
 
 # MAKE SURE TO RUN WITH THE CORRECT CONDA ENV OTHERWISE YOU'LL LOSE IT COMPLETELY
 
-
+import sys
 import time
 import glob
 import cv2
@@ -11,18 +11,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import gdal
 from scipy import ndimage
-import sys
 
 startTime = time.time()
 
 # location of source images
-filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/'
+filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/16bit_proper/'
 
 # location to save processed images
 nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input_rn/'
 
 
-# images = ['S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif']
+# images = ['S1A_IW_GRDH_1SSH_20210715T062648_20210715T062717_038784_04938B_E134_Orb_TNR_Cal_RN_1_3031.tif']
+
 images = []
 for name in glob.glob(filepath + "*.tif"):
     trunc_name = str(name).split('\\')[-1]
@@ -30,13 +30,11 @@ for name in glob.glob(filepath + "*.tif"):
 
 def read_img(filename):
     # read an image
-    img_r = cv2.imread(filename, 0)
-    img = img_r.astype(np.uint8)
-
+    img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
+    
     # read it as a GeoTiff to collect geodata
     img_m = gdal.Open(filename)
-    img_array = img_m.ReadAsArray()
-
+    img_array = img_m.GetRasterBand(1).ReadAsArray()
     # create a NO DATA mask
     bool_mask = (img_array != 0)
     img_mask = bool_mask.astype(np.uint8)
@@ -46,10 +44,20 @@ def b_filter(img_in):
     blur = cv2.bilateralFilter(img_in, 9, 75, 75)
     return blur
 
-def get_binary(blur, threshold=200, max_val=300):
-    # q: Diameter of each pixel neighborhood that is used during filtering
-    (thresh, binary) = cv2.threshold(blur, threshold, max_val, (cv2.THRESH_BINARY + cv2.THRESH_OTSU))
-    return binary
+def get_binary(img):
+    # Takes a raster array (needs to be np.uint8) and returns its otsu threshold + the result of the thresholding
+    # Calculated by disregarding black areas (border)
+
+    # Remove the cells which have a value of 0 (border)
+    bool_index = (img != 0)
+    # Add them to an array
+    temp_img = np.extract(bool_index, img)
+    # Calculate Otsu threshold from the pixels which have a non-zero value
+    thresh_val, temp = cv2.threshold(temp_img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    # Apply thresholding to raster array with the threshold value calculated above
+    ret, thresh_img = cv2.threshold(img, thresh_val, 255, cv2.THRESH_BINARY)
+    return thresh_img
+
 
 def delete_b(img, min_size_fraction):
 
@@ -99,19 +107,27 @@ for image_name in images:
     blur = b_filter(image).astype(np.uint8)
     # plt.imshow(blur)
     # plt.show()
+
     binary = get_binary(blur).astype(np.uint8)
- 
+    # plt.imshow(binary)
+    # plt.show()
+    
     binary_w = delete_b(binary, 0.05).astype(np.uint8)
+    # plt.imshow(binary_w)
+    # plt.show()
 
     new_b = remove_mask(binary_w, mask).astype(np.uint8)
     # plt.imshow(new_b)
     # plt.show()
+
     new_clean = delete_b(new_b, 0.05).astype(np.uint8)
     # plt.imshow(new_clean)
     # plt.show()
+
     temp = remove_mask(new_clean, mask).astype(np.uint8)
     # plt.imshow(temp)
     # plt.show()
+    
     binary_clean = (~temp.astype(bool)).astype(np.uint8)
 
 
@@ -126,13 +142,15 @@ for image_name in images:
     noborder_boundary = remove_border(boundary, border_mask).astype(np.uint8)
     kernel = np.ones((3, 3))
     final = cv2.morphologyEx(noborder_boundary, cv2.MORPH_CLOSE, kernel)
-    plt.imshow(final)
-    plt.show()
+    # plt.imshow(final)
+    # plt.show()
+
+
     driver_tiff = gdal.GetDriverByName("GTiff")
 
     # set the new file name (same as source image, but different folder)
-    nfn = nfnb + '0.05_areas' + image_name 
-
+    nfn = nfnb + image_name 
+    print(nfn)
 
     # create GeoTiff
     nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,

@@ -15,15 +15,14 @@ import time
 
 startTime = time.time()
 
-input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input\\"
-output_location = "C:\\Users\myung\Documents\CSC8099\Data\Output\\"
+input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input_rn\\"
+output_location = "C:\\Users\myung\Documents\CSC8099\Data\Output_rn\\"
 
-
-images = ['0.05_areasS1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1']
-#for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input/*.tif"):
-#    trunc_name = str(name).split('\\')[-1][:-4]
-#    # Save image names (w/o path or .tif suffix)
-#    images.append(trunc_name)
+images = []
+for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input_rn/*.tif"):
+    trunc_name = str(name).split('\\')[-1][:-4]
+    # Save image names (w/o path or .tif suffix)
+    images.append(trunc_name)
 
 i = 0
 
