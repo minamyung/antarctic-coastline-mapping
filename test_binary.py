@@ -11,14 +11,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import gdal
 from scipy import ndimage
+import tifffile as tifi
 
 startTime = time.time()
 
 # location of source images
-filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/16bit_proper/'
+filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/16bit_proper/takes_too_long/'
 
 # location to save processed images
-nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input_rn/'
+nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input_rn/takes_too_long/'
 
 
 # images = ['S1A_IW_GRDH_1SSH_20210715T062648_20210715T062717_038784_04938B_E134_Orb_TNR_Cal_RN_1_3031.tif']
@@ -29,7 +30,8 @@ for name in glob.glob(filepath + "*.tif"):
     images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
 
 def read_img(filename):
-    # read an image
+    # read image with tiffile to handle larger rasters
+    # img = tifi.imread(filename).astype(np.uint8)
     img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
     
     # read it as a GeoTiff to collect geodata
@@ -150,7 +152,7 @@ for image_name in images:
 
     # set the new file name (same as source image, but different folder)
     nfn = nfnb + image_name 
-    print(nfn)
+    # print(nfn)
 
     # create GeoTiff
     nds = driver_tiff.Create(nfn, xsize=geo_file.RasterXSize, ysize=geo_file.RasterYSize, bands=1,

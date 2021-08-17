@@ -15,11 +15,11 @@ import time
 
 startTime = time.time()
 
-input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input_rn\\"
+input_location = "C:\\Users\myung\Documents\CSC8099\Data\Input_rn\\takes_too_long\\"
 output_location = "C:\\Users\myung\Documents\CSC8099\Data\Output_rn\\"
 
 images = []
-for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input_rn/*.tif"):
+for name in glob.glob("C:/Users/myung/Documents/CSC8099/Data/Input_rn/takes_too_long/*.tif"):
     trunc_name = str(name).split('\\')[-1][:-4]
     # Save image names (w/o path or .tif suffix)
     images.append(trunc_name)
