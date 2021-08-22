@@ -31,6 +31,7 @@ images = ['S1B_IW_GRDH_1SSH_20210711T043551_B06E_S_1.tif']
 REF_PATH = 'C:/Users/myung/Documents/CSC8099/Data/add_coastline_high_res_polygon_v7_4/add_coastline_high_res_polygon_v7_4.shp'
 REF_GS = gpd.GeoSeries.from_file(REF_PATH)
 REF_GDF = gpd.GeoDataFrame.from_file(REF_PATH)
+
 def read_img(filename):
     # read an image
     img_r = cv2.imread(filename, 0)
