@@ -11,23 +11,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 from osgeo import gdal
 from scipy import ndimage
-import tifffile as tifi
 
 startTime = time.time()
 
 # location of source images
-filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/16bit_proper/takes_too_long/'
+filepath = 'C:/Users/myung/Documents/CSC8099/Data/range_normalised/16bit_proper/'
 
 # location to save processed images
 nfnb= 'C:/Users/myung/Documents/CSC8099/Data/Input_rn/takes_too_long/'
 
 
-# images = ['S1A_IW_GRDH_1SSH_20210715T062648_20210715T062717_038784_04938B_E134_Orb_TNR_Cal_RN_1_3031.tif']
+images = ['S1B_EW_GRDM_1SDH_20210711T074538_20210711T074636_027743_034F9A_C432_Orb_TNR_Cal_RN_1_3031.tif']
 
-images = []
-for name in glob.glob(filepath + "*.tif"):
-    trunc_name = str(name).split('\\')[-1]
-    images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
+# images = []
+# for name in glob.glob(filepath + "*.tif"):
+#     trunc_name = str(name).split('\\')[-1]
+#     images.append(trunc_name) # Save the truncated (w/o path) image file names to make naming the result products easier
 
 def read_img(filename):
     # read image with tiffile to handle larger rasters
@@ -37,6 +36,7 @@ def read_img(filename):
     # read it as a GeoTiff to collect geodata
     img_m = gdal.Open(filename)
     img_array = img_m.GetRasterBand(1).ReadAsArray()
+
     # create a NO DATA mask
     bool_mask = (img_array != 0)
     img_mask = bool_mask.astype(np.uint8)
@@ -60,9 +60,32 @@ def get_binary(img):
     ret, thresh_img = cv2.threshold(img, thresh_val, 255, cv2.THRESH_BINARY)
     return thresh_img
 
+def filter_components(img, geo_file):
+    MIN_AREA = 1000000000 # Minimum area threshold in m^2 (1000km^2)
+
+    # Get pixel sizes
+    dx = geo_file.GetGeoTransform()[1]
+    dy = -geo_file.GetGeoTransform()[5]
+
+    # Scale the min component area using pixel size
+    scaled_min_area = MIN_AREA / (dx * dy)
+
+    # split into components
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(img, connectivity=4)
+
+    # remove background
+    sizes = stats[1:, -1]
+    nb_components = nb_components - 1
+
+    # Make an array to hold filtered image
+    filtered_img = np.zeros(output.shape)
+
+    for i in range(0, nb_components):
+        if sizes[i] > scaled_min_area:
+            filtered_img[output == i + 1] = 1
+    return filtered_img
 
 def delete_b(img, min_size_fraction):
-
     # split into components
     nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(img, connectivity=4)
 
@@ -78,13 +101,13 @@ def delete_b(img, min_size_fraction):
 
     # set to optimal min size
     min_size = max_size * min_size_fraction
-
+    print(min_size)
     img2 = np.zeros(output.shape)
     # for every component in the image check if it larger than set minimum size
     for i in range(0, nb_components):
         if sizes[i] > min_size:
             img2[output == i + 1] = 1
-    return img2
+    return img2, min_size
 
 def remove_mask(img, img_mask):
     img2 = cv2.bitwise_xor(img,img_mask)
@@ -106,29 +129,35 @@ for image_name in images:
     print('Processing ' + image_name)
 
     (image, mask, geo_file) = read_img(filename)
+
+
     blur = b_filter(image).astype(np.uint8)
-    # plt.imshow(blur)
-    # plt.show()
+    plt.imshow(blur)
+    plt.show()
+    sys.exit()
 
     binary = get_binary(blur).astype(np.uint8)
-    # plt.imshow(binary)
-    # plt.show()
+    plt.imshow(binary)
+    plt.show()
     
-    binary_w = delete_b(binary, 0.05).astype(np.uint8)
-    # plt.imshow(binary_w)
-    # plt.show()
+    # Remove components in ocean
+    binary_w = filter_components(binary, geo_file).astype(np.uint8)
+    plt.imshow(binary_w)
+    plt.show()
+
 
     new_b = remove_mask(binary_w, mask).astype(np.uint8)
-    # plt.imshow(new_b)
-    # plt.show()
+    plt.imshow(new_b)
+    plt.show()
 
-    new_clean = delete_b(new_b, 0.05).astype(np.uint8)
-    # plt.imshow(new_clean)
-    # plt.show()
+    # Remove internal components
+    new_clean = filter_components(new_b, geo_file).astype(np.uint8)
+    plt.imshow(new_clean)
+    plt.show()
 
     temp = remove_mask(new_clean, mask).astype(np.uint8)
-    # plt.imshow(temp)
-    # plt.show()
+    plt.imshow(temp)
+    plt.show()
     
     binary_clean = (~temp.astype(bool)).astype(np.uint8)
 
@@ -144,8 +173,8 @@ for image_name in images:
     noborder_boundary = remove_border(boundary, border_mask).astype(np.uint8)
     kernel = np.ones((3, 3))
     final = cv2.morphologyEx(noborder_boundary, cv2.MORPH_CLOSE, kernel)
-    # plt.imshow(final)
-    # plt.show()
+    plt.imshow(final)
+    plt.show()
 
 
     driver_tiff = gdal.GetDriverByName("GTiff")
