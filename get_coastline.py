@@ -4,6 +4,7 @@
 # MAKE SURE TO RUN WITH THE CORRECT CONDA ENV OTHERWISE YOU'LL LOSE IT COMPLETELY
 
 import sys
+from collections import defaultdict
 import time
 import glob
 import cv2
@@ -12,8 +13,7 @@ import numpy as np
 from osgeo import gdal, ogr
 from scipy import ndimage
 import geopandas as gpd
-from shapely.geometry import Point, Polygon, box, shape
-import shapely.validation
+from shapely.geometry import MultiPolygon, Point, Polygon, box, shape
 import rasterio.features
 import rasterio.mask
 from affine import Affine
@@ -55,6 +55,8 @@ def read_img(filename):
     # create a NO DATA mask
     bool_mask = (img_array != 0)
     img_mask = bool_mask.astype(np.uint8)
+    
+
     return img, img_mask, geo_file
 
 def b_filter(img_in):
@@ -124,6 +126,70 @@ def delete_b(img, min_size_fraction):
     return img2, min_size
 
 
+def get_contours(img):
+    contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours = map(np.squeeze, contours)
+    polygons = map(Polygon, contours)
+    #cv2.drawContours(img, contours, -1, (255, 0, 0), 250)
+    return img
+
+def mask_to_polygons(mask, epsilon=10, min_area=10.):
+    # first, find contours with cv2: it's much faster than shapely
+    contours, hierarchy = cv2.findContours(
+        ((mask == 1) * 255).astype(np.uint8),
+        cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
+    # create approximate contours to have reasonable submission size
+    approx_contours = [cv2.approxPolyDP(cnt, epsilon, True)
+                       for cnt in contours]
+    if not contours:
+        return MultiPolygon()
+        
+    # now messy stuff to associate parent and child contours
+    cnt_children = defaultdict(list)
+    child_contours = set()
+    assert hierarchy.shape[0] == 1
+    # http://docs.opencv.org/3.1.0/d9/d8b/tutorial_py_contours_hierarchy.html
+    for idx, (_, _, _, parent_idx) in enumerate(hierarchy[0]):
+        if parent_idx != -1:
+            # If the contour has child contours, add their index to child_contours
+            child_contours.add(idx)
+            # And append the contour to the list of its parent's child contours
+            cnt_children[parent_idx].append(approx_contours[idx])
+    # create actual polygons filtering by area (removes artifacts)
+    all_polygons = []
+    for idx, cnt in enumerate(approx_contours):
+        if idx not in child_contours and cv2.contourArea(cnt) >= min_area:
+            assert cnt.shape[1] == 1
+            poly = Polygon(
+                shell=cnt[:, 0, :],
+                holes=[c[:, 0, :] for c in cnt_children.get(idx, [])
+                       if cv2.contourArea(c) >= min_area])
+            all_polygons.append(poly)
+    # approximating polygons might have created invalid ones, fix them
+    all_polygons = MultiPolygon(all_polygons)
+    if not all_polygons.is_valid:
+        all_polygons = all_polygons.buffer(0)
+        # Sometimes buffer() converts a simple Multipolygon to just a Polygon,
+        # need to keep it a Multi throughout
+        if all_polygons.type == 'Polygon':
+            all_polygons = MultiPolygon([all_polygons])
+
+    return all_polygons
+
+def polygons_to_shpfile(polygons, geo_file):
+    transform = Affine.from_gdal(*geo_file.GetGeoTransform())
+    # 2d transform method from https://gis.stackexchange.com/questions/380357/affine-tranformation-matrix-shapely-asks-6-coefficients-but-rasterio-delivers
+    two_d_transform = [elem for tuple in transform.column_vectors for elem in tuple]
+    
+    polygons_names = []
+
+    for poly in polygons:
+        polygons_names.append('contour polygon')
+    
+    df_polygons = {'name': polygons_names, 'geometry': polygons}
+    gdf_polygons = gpd.GeoDataFrame(df_polygons, crs='epsg:3031').affine_transform(two_d_transform)
+    gdf_polygons.to_file('C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/contour_polygons_affine_9.shp')
+
 def extract_polygons(img, geo_file, img_mask):
     # Removes internal features of detected coastline using the reference polygon coastline
 
@@ -147,11 +213,11 @@ def extract_polygons(img, geo_file, img_mask):
 def get_bounding_box(img_mask, geo_file):
     # Returns a polygon of the size of the image bounds
     # Get Affine transform of original image
-    transform = Affine.from_gdal(*geo_file.GetGeoTransform())
+    transform1 = Affine.from_gdal(*geo_file.GetGeoTransform())
     # Initialise mask_polygon
     mask_polygon = None
     # Go through all the shapes extracted from the img_mask array 
-    for vec in rasterio.features.shapes(img_mask, transform=transform): 
+    for vec in rasterio.features.shapes(img_mask, transform=transform1): 
         if(vec[1] == 1): # The inner box of the img_mask is where the value is 1
             mask_polygon = shape(vec[0]) # Save as a shape
     # Make the dataframe (see pandas)
@@ -162,7 +228,6 @@ def get_bounding_box(img_mask, geo_file):
     # Save to shapefile if necessary
     # gdf_inner.to_file('C:/Users/myung/Documents/CSC8099/Data/polygons/bounding_box_inner.shp')
     return gdf_inner
-
 
 def clip_ref_polygon_inner(gdf_inner):
     # Clip reference polygon data to inner border of the satellite image(w/o nodata areas)
@@ -177,6 +242,16 @@ def clip_ref_polygon_inner(gdf_inner):
     return clipped_inner_dissolved
 
 def polygon_filtering(extracted_polygons, clipped_inner, geo_file):
+    # Buffer the reference coastline polygon(s)
+    buffered_polygons = []
+    buffered_polygons_names = []
+    for ref_polygon in clipped_inner['geometry']:
+        buffered_polygons.append(ref_polygon.buffer(250))
+        buffered_polygons_names.append('buffered ref polygons')
+    df_buffered_polygons = {'name': buffered_polygons_names, 'geometry': buffered_polygons}
+    gdf_buffered_polygons = gpd.GeoDataFrame(df_buffered_polygons, crs='epsg:3031')
+    gdf_buffered_polygons.to_file('C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/buffer/250.shp')
+    
     # For each of the extracted polygons, check whether it is entirely contained within the ref coastline polygons. If so, it can be disregarded as an internal feature to get a definitive coastline.
     # extracted_polygons is a layer
     filtered_polygons = []
@@ -189,7 +264,7 @@ def polygon_filtering(extracted_polygons, clipped_inner, geo_file):
                 filtered_polygons_names.append('filtered polygons')
     df_filtered_polygons = {'name': filtered_polygons_names, 'geometry': filtered_polygons}
     gdf_filtered_polygons = gpd.GeoDataFrame(df_filtered_polygons, crs='epsg:3031')
-    gdf_filtered_polygons.to_file('C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/filtered_polygons_new.shp')
+    gdf_filtered_polygons.to_file('C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/buffer/filtered_polygons_250.shp')
     return filtered_polygons
 
 def remove_mask(img, img_mask):
@@ -221,8 +296,6 @@ for image_name in images:
     binary = get_binary(blur).astype(np.uint8)
     # plt.imshow(binary)
     # plt.show()
-    
-    
 
     # Remove components in ocean
     binary_w = filter_components(binary, geo_file).astype(np.uint8)
@@ -234,9 +307,31 @@ for image_name in images:
     # plt.imshow(new_b)
     # plt.show()
 
-    m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN, KERNEL)
-    plt.imshow(m_open_new_b)
-    plt.show()
+    m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN, KERNEL).astype(np.uint8)
+    # plt.imshow(m_open_new_b)
+    # plt.show()
+    
+    # Remove small internal features
+    new_clean = filter_components(m_open_new_b, geo_file).astype(np.uint8)
+    # plt.imshow(new_clean)
+    # plt.show()
+    
+    # Revert back
+    new_clean_invert = remove_mask(new_clean, img_mask).astype(np.uint8)
+    # plt.imshow(new_clean_invert)
+    # plt.show()
+
+    # multipolygon = mask_to_polygons(img)
+    polygons = mask_to_polygons(new_clean_invert)
+    polygons_to_shpfile(polygons, geo_file)
+    # Find contours and display
+    # contoured_img = get_contours(new_clean_invert)
+    # plt.imshow(contoured_img)
+    # plt.show()
+    
+
+    sys.exit()
+
 
     # Remove internal components
     gdf_inner = get_bounding_box(img_mask, geo_file)
