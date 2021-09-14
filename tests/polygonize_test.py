@@ -6,7 +6,6 @@ import numpy as np
 from osgeo import gdal, ogr
 from osgeo import osr
 from scipy import ndimage
-import subprocess
 import geopandas as gpd
 from shapely.geometry import Point, Polygon, box, shape
 import rasterio.features
@@ -266,18 +265,23 @@ for image_name in images:
     m_close_binary_w = cv2.morphologyEx(binary_w, cv2.MORPH_CLOSE, kernel)
     # plt.imshow(m_close_binary_w)
     # plt.show()
+    
     new_b = remove_mask(m_close_binary_w, img_mask).astype(np.uint8)
     # plt.imshow(new_b)
     # plt.show()
+
+
     # Here, extract polygons and remove those which are inside the ref. coastline as internal features
-    
     # m_close_new_b = cv2.morphologyEx(new_b, cv2.MORPH_CLOSE, kernel)
     m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN, kernel)
+
     # plt.imshow(m_close_new_b)
     # plt.show()
     # plt.imshow(m_open_new_b)
     # plt.show()
+
     extract_polygons(m_open_new_b, img_mask, img_m)
+
     # new_clean = extract_polygons(new_b, 0.05).astype(np.uint8)
     # plt.imshow(new_clean)
     # plt.show()
