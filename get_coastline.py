@@ -1,3 +1,10 @@
+#########################################
+# Original Author: Anastasija Jadrevska #
+# Modifying Author: Manon Myung         #
+#########################################
+
+
+
 import glob
 import sys
 import time
@@ -14,34 +21,25 @@ from osgeo import gdal
 from shapely.affinity import affine_transform
 from shapely.geometry import MultiPolygon, Polygon, shape
 
-startTime = time.time()
+start_time = time.time()
 
-# location of source images
-filepath = 'C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/'
 
-# location to save processed images
-nfnb = 'C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/input/'
-# nfnb = 'C:/Users/myung/Documents/CSC8099/Example_problems'
+# Note: all lengths/areas are in m/m^2 unless otherwise stated
 
-# images = ['S1B_EW_GRDM_1SDH_20210711T074538_20210711T074636_027743_034F9A_C432_Orb_TNR_Cal_RN_1_3031.tif']
+# Location of source images
+SRC_FILEPATH = 'C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/'
 
-images = []
-for name in glob.glob(filepath + "*.tif"):
-    trunc_name = str(name).split('\\')[-1]
-    images.append(
-        trunc_name
-    )  # Save the truncated (w/o path) image file names to make naming the result products easier
+# Location to save outputs
+DST_FILEPATH = 'C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/output/'
 
 # Reference coastline for polygon masking
 REF_PATH = 'C:/Users/myung/Documents/CSC8099/Data/add_coastline_high_res_polygon_v7_4/add_coastline_high_res_polygon_v7_4.shp'
 REF_GDF = gpd.GeoDataFrame.from_file(REF_PATH)
 
-KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
-
+KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10)) # Kernel element for morphological open/close - smoothing
+MIN_AREA = 1000000000  # Minimum area threshold in m^2 (1000km^2) - any components under this size will be considered to be noise
 
 def read_img(filename):
-    # read image with tiffile to handle larger rasters
-    # img = tifi.imread(filename).astype(np.uint8)
     img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
 
     # read it as a GeoTiff to collect geodata
@@ -84,9 +82,8 @@ def get_binary(img):
     ret, thresh_img = cv2.threshold(img, thresh_val, 255, cv2.THRESH_BINARY)
     return thresh_img
 
-def filter_components(img, transform):
-    MIN_AREA = 1000000000  # Minimum area threshold in m^2 (1000km^2)
 
+def filter_components(img, transform):
     # Get pixel sizes
     dx = transform.column_vectors[0][0]
     dy = -transform.column_vectors[1][1]
@@ -113,30 +110,6 @@ def filter_components(img, transform):
 def mask_invert(img, img_mask):
     img2 = cv2.bitwise_xor(img, img_mask)
     return img2
-
-def delete_b(img, min_size_fraction):
-    # split into components
-    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(
-        img, connectivity=4)
-
-    # remove background
-    sizes = stats[1:, -1]
-    nb_components = nb_components - 1
-
-    # find the largest component
-    max_size = sizes[1]
-    for i in range(2, nb_components):
-        if sizes[i] > max_size:
-            max_size = sizes[i]
-
-    # set to optimal min size
-    min_size = max_size * min_size_fraction
-    img2 = np.zeros(output.shape)
-    # for every component in the image check if it larger than set minimum size
-    for i in range(0, nb_components):
-        if sizes[i] > min_size:
-            img2[output == i + 1] = 1
-    return img2, min_size
 
 
 def get_contours(img):
@@ -239,7 +212,7 @@ def clip_ref_polygon_inner(gdf_inner):
     return clipped_inner_dissolved
 
 
-def polygons_to_shpfile(polygons, two_d_transform):
+def polygons_to_shpfile(polygons, two_d_transform, dst_filename):
     polygons_transformed = []
     polygons_names = []
 
@@ -250,11 +223,16 @@ def polygons_to_shpfile(polygons, two_d_transform):
     df_polygons = {'name': polygons_names, 'geometry': polygons_transformed}
     gdf_polygons = gpd.GeoDataFrame(df_polygons, crs='epsg:3031')
     gdf_dissolved = gdf_polygons.dissolve()
-    gdf_dissolved.to_file(
-        'C:/Users/myung/Documents/CSC8099/Data/polygon_filtering/clean_code2.shp'
-    )
+    gdf_dissolved.to_file(dst_filename + '.shp')
+    return gdf_dissolved
 
+def get_change(dissolved_polygons, clipped_inner_dissolved):
+    change_polygon = gpd.overlay(dissolved_polygons, clipped_inner_dissolved, how='difference')
+    change_area = 0
+    for geom in change_polygon['geometry']:
+        change_area += geom.area
 
+    return change_polygon, change_area
 
 # def save_gtiff(img, nfn):
 #     print(nfn)
@@ -275,42 +253,65 @@ def polygons_to_shpfile(polygons, two_d_transform):
 #     nds.GetRasterBand(1).SetNoDataValue(0)
 #     nds = None
 
+
+
+# Add all images to process to list
+images = []
+for name in glob.glob(SRC_FILEPATH + "*.tif"):
+    trunc_name = str(name).split('\\')[-1]
+    images.append(
+        trunc_name
+    )  # Save the truncated (w/o path) image file names to make naming the result products easier
+
+
 i = 0  # Count the number of images processed
 
 for image_name in images:
     i += 1
     total = len(images)
 
-    filename = filepath + image_name
+    filename = SRC_FILEPATH + image_name
 
     # set the new file destination (same as source image, but different folder)
-    nfn = nfnb + image_name
+    dst_filename = DST_FILEPATH + str(image_name).split('.')[0]
 
     print(str(i) + "/" + str(total))
     print('Processing ' + image_name)
 
     (img, img_mask, transform, two_d_transform) = read_img(filename)
 
+    # Apply bilateral filter (blurring)
     blur = bilateral_filter(img).astype(np.uint8)
+    # plt.imshow(blur)
+    # plt.show()
 
+    # Get binary image
     binary = get_binary(blur).astype(np.uint8)
+    # plt.imshow(binary)
+    # plt.show()
 
     # Remove noise components in ocean
     binary_w = filter_components(binary, transform).astype(np.uint8)
-    m_close_binary_w = cv2.morphologyEx(binary_w, cv2.MORPH_CLOSE, KERNEL).astype(np.uint8)
     # plt.imshow(binary_w)
     # plt.show()
 
+    # Morphological close
+    m_close_binary_w = cv2.morphologyEx(binary_w, cv2.MORPH_CLOSE, KERNEL).astype(np.uint8)
+    # plt.imshow(m_close_binary_w)
+    # plt.show()
+
+    # Invert
     new_b = mask_invert(m_close_binary_w, img_mask).astype(np.uint8)
     # plt.imshow(new_b)
     # plt.show()
 
+    # Morphological open
     m_open_new_b = cv2.morphologyEx(new_b, cv2.MORPH_OPEN,
                                     KERNEL).astype(np.uint8)
     # plt.imshow(m_open_new_b)
     # plt.show()
 
-    # Remove small internal features
+    # Remove noise components inside coast
     new_clean = filter_components(m_open_new_b, transform).astype(np.uint8)
     # plt.imshow(new_clean)
     # plt.show()
@@ -320,23 +321,41 @@ for image_name in images:
     # plt.imshow(new_clean_invert)
     # plt.show()
 
+    # Get a bounding box of the image extent
     gdf_inner = get_bounding_box(img_mask, transform)
+
+    # Use bounding box to clip the reference coastline polygons, and dissolve them
     clipped_inner_dissolved = clip_ref_polygon_inner(gdf_inner)
 
+    # Get the polygons of the areas classified as land
     polygons = mask_to_polygons(new_clean_invert, clipped_inner_dissolved,
                                 two_d_transform)
 
+    # Get the polygons of land/inner features misclassified as ocean
     inner_polygons = mask_to_polygons(new_clean, clipped_inner_dissolved, two_d_transform, 10)
-    
 
+    # Gather all resulting polygons
     polygons.extend(inner_polygons)
 
-    polygons_to_shpfile(polygons, two_d_transform)
+    # Dissolve polygons to have a unified coastline polygon, and save to shapefile
+    dissolved = polygons_to_shpfile(polygons, two_d_transform, dst_filename)
 
-    positive_change_polygons = []
-
-    negative_change_polygons = []
-
-executionTime = (time.time() - startTime)
+    # Change detection using the change polygon method
+    positive_change_polygons, positive_change_area = get_change(dissolved, clipped_inner_dissolved)
+    negative_change_polygons, negative_change_area = get_change(clipped_inner_dissolved, dissolved)
+    
+    # Calculate net change
+    net_change_area = positive_change_area - negative_change_area
+    
+    # Save change polygons
+    positive_change_polygons.to_file(dst_filename + '_pos_change_' + '.shp')
+    negative_change_polygons.to_file(dst_filename + '_neg_change_' + '.shp')
+    
+    print('Positive change: '+ str(positive_change_area/1000000) + ' km^2')
+    print('Negative change: ' + str(negative_change_area/1000000) + ' km^2')
+    print('Net change: ' + str(net_change_area/1000000) + ' km^2')
+    
+execution_time = (time.time() - start_time)
 print("Finished processing images.")
-print("Execution time: " + str(executionTime))
+print("Execution time: " + str(execution_time))
+print("Average time per image: " + str(execution_time/i))
