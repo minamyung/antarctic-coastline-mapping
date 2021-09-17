@@ -48,7 +48,7 @@ MIN_AREA = 1000000000  # Minimum area threshold in m^2 (1000km^2) - any componen
 def read_img(filename):
     # Open tif file
     img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE).astype(np.uint8)
-    
+
     # read it as a GeoTiff to collect geodata
     geo_file = gdal.Open(filename)
     img_array = geo_file.GetRasterBand(1).ReadAsArray()
