@@ -8,19 +8,21 @@ import time
 
 startTime = time.time()
 
-username = 'minamyung'
-password = 'pF32xMRWrSK858S'
+# Add login details
+username = ''
+password = ''
 
 
 base_URI = "https://scihub.copernicus.eu/dhus/odata/v1/Products"
 
 filenames = []
 
-base_path = 'C:\\Users\myung\Documents\CSC8099\Data\Coastline_images_to_extract\\'
+# Add destination folder
+base_path = ''
 
 
 # Open list of filenames of S1 data used in making the reference coastline
-with open('C:\\Users\myung\Documents\CSC8099\Data\\filenames_test.csv') as csvfile:
+with open('') as csvfile:
     reader = csv.reader(csvfile)
     next(reader) # Skip first line of CSV file
     for row in reader:
